@@ -3100,23 +3100,17 @@ const state = {
 // ============================================================
 // HELPERS
 // ============================================================
-function getMatchedSize(targetSize, brand) {
-  const brandSizes = PRODUCTS.filter(p => p.brand === brand).map(p => p.size);
-  if (brandSizes.length === 0) return null;
-  if (brandSizes.includes(targetSize)) return targetSize;
-  return brandSizes.reduce((closest, size) =>
-    Math.abs(size - targetSize) < Math.abs(closest - targetSize) ? size : closest
-  );
-}
-
-// 모든 브랜드 (MAXHUB 첫 번째)
+// 정확 사이즈 매칭만 표시 — 55인치 제안에 65인치 데이터 섞이는 혼동 방지
+// 해당 사이즈 미생산 브랜드는 칩에서 자동 제외됨
 function getAllBrands(targetSize) {
-  const brands = ["MAXHUB", ...new Set(PRODUCTS.filter(p => p.brand !== "MAXHUB").map(p => p.brand))];
-  return brands.map(brand => {
-    const matchedSize = getMatchedSize(targetSize, brand);
-    const product = PRODUCTS.find(p => p.brand === brand && p.size === matchedSize);
-    return { brand, product, matchedSize, isExactMatch: matchedSize === targetSize };
-  }).filter(c => c.product);
+  const matching = PRODUCTS.filter(p => p.size === targetSize);
+  const brandOrder = ["MAXHUB", ...new Set(PRODUCTS.filter(p => p.brand !== "MAXHUB").map(p => p.brand))];
+  return brandOrder
+    .map(brand => {
+      const product = matching.find(p => p.brand === brand);
+      return product ? { brand, product, matchedSize: targetSize, isExactMatch: true } : null;
+    })
+    .filter(c => c !== null);
 }
 
 function escapeHTML(str) {
