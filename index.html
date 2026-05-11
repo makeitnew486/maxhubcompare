@@ -334,6 +334,30 @@
     line-height: 1.5;
   }
 
+  /* 비교 우위 음영 — 선택된 카드들 중 1위 스펙 강조 */
+  .spec-list-row.winner {
+    background: linear-gradient(90deg, transparent 0%, rgba(46, 125, 50, 0.08) 50%, rgba(46, 125, 50, 0.04) 100%);
+    border-radius: 6px;
+    margin: 0 -8px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .spec-list-row.winner .spec-list-value {
+    color: #2e7d32;
+    position: relative;
+  }
+  .spec-list-row.winner .spec-list-value::before {
+    content: '✓ ';
+    color: #2e7d32;
+    margin-right: 2px;
+  }
+  /* 컴팩트 모드(4개 이상)에서도 음영 유지 */
+  .compare-grid.compact .spec-list-row.winner {
+    margin: 0 -6px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
   /* 상세 항목 — 기본은 숨김, 펼치면 표시 */
   .spec-list-row.detailed-row {
     display: none;
@@ -2498,6 +2522,7 @@ const SPEC_GROUPS = [
       {
         "label": "밝기",
         "key": "brightness",
+        "compare": "higher",
         "suffix": " cd/m²",
         "tooltip": {
           "title": "화면이 얼마나 밝은가",
@@ -2508,6 +2533,7 @@ const SPEC_GROUPS = [
       {
         "label": "명암비",
         "key": "contrast",
+        "compare": "higher",
         "tooltip": {
           "title": "검정과 흰색이 얼마나 차이 나는가",
           "meaning": "숫자가 클수록 화면 색이 또렷하고 입체감 있게 보입니다. 영상 시청·자료 발표 시 차이가 큽니다.",
@@ -2551,6 +2577,7 @@ const SPEC_GROUPS = [
       {
         "label": "터치포인트",
         "key": "touchPoints",
+        "compare": "higher",
         "suffix": "점",
         "tooltip": {
           "title": "동시에 화면을 만질 수 있는 손가락/펜 개수",
@@ -2632,6 +2659,7 @@ const SPEC_GROUPS = [
       {
         "label": "RAM",
         "key": "ram",
+        "compare": "higher",
         "tooltip": {
           "title": "보드의 단기 기억 공간",
           "meaning": "클수록 여러 앱을 동시에 부드럽게 실행할 수 있습니다.",
@@ -2641,6 +2669,7 @@ const SPEC_GROUPS = [
       {
         "label": "저장공간",
         "key": "storage",
+        "compare": "higher",
         "tooltip": {
           "title": "보드 내장 저장 용량",
           "meaning": "화이트보드 기록, 회의 자료, 설치 앱 등이 저장되는 공간. 클수록 더 많은 자료를 보드에 직접 저장 가능.",
@@ -2692,6 +2721,7 @@ const SPEC_GROUPS = [
       {
         "label": "마이크 픽업",
         "key": "micRange",
+        "compare": "higher",
         "tooltip": {
           "title": "마이크가 소리를 잡을 수 있는 거리",
           "meaning": "멀리서 발언해도 또렷이 들리는 거리. 회의실 크기에 따라 적합한 사양이 다릅니다.",
@@ -2759,6 +2789,7 @@ const SPEC_GROUPS = [
       {
         "label": "동시 캐스트",
         "key": "maxCastDevices",
+        "compare": "higher",
         "suffix": "대",
         "tooltip": {
           "title": "몇 대의 기기를 동시에 화면 띄울 수 있는가",
@@ -2856,6 +2887,7 @@ const SPEC_GROUPS = [
       {
         "label": "소비전력",
         "key": "power",
+        "compare": "lower",
         "tooltip": {
           "title": "보드가 사용하는 전력량 (와트)",
           "meaning": "숫자가 낮을수록 전기료가 적게 들고 친환경적입니다. 사이즈가 클수록 전력을 더 사용합니다.",
@@ -2870,6 +2902,7 @@ const SPEC_GROUPS = [
       {
         "label": "무게",
         "key": "weight",
+        "compare": "lower",
         "tooltip": {
           "title": "보드 본체의 무게",
           "meaning": "설치 시 벽걸이 보강 작업이나 이동식 카트의 하중 한계를 고려해야 합니다.",
@@ -2956,6 +2989,96 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
 
+// 비교 가능한 스펙 값을 숫자로 파싱
+// row.compare가 "higher" 또는 "lower"인 키에 대해서만 호출됨
+function parseSpecNumeric(value, key) {
+  if (value === undefined || value === null || value === '' || value === '—') return null;
+  if (typeof value === 'number') return value;
+  const s = String(value);
+  if (key === 'contrast') {
+    const m = s.match(/(\d+)\s*:\s*1/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+  if (key === 'micRange') {
+    // "최대 15m", "8m" 등에서 m 앞 숫자 (여러 개 있으면 최댓값)
+    const nums = (s.match(/(\d+(?:\.\d+)?)\s*m\b/gi) || []).map(x => parseFloat(x));
+    return nums.length ? Math.max(...nums) : null;
+  }
+  if (key === 'maxCastDevices') {
+    const m = s.match(/(\d+)\s*대/) || s.match(/(\d+)\s*분할/) || s.match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+  if (key === 'ram' || key === 'storage') {
+    // "16 GB", "256 GB SSD", "32G" 모두 매치
+    const m = s.match(/(\d+)\s*G/i);
+    return m ? parseInt(m[1], 10) : null;
+  }
+  if (key === 'power') {
+    // "대기 ≦0.5W" 등 standby 전력은 제외하고 운영 전력만 비교
+    const activePart = s.split(/대기|standby/i)[0];
+    const nums = (activePart.match(/(\d+(?:\.\d+)?)\s*W/gi) || []).map(x => parseFloat(x));
+    // 여러 운영 전력 값이 있으면 최솟값 (예: "200W (Without OPS) / 250W (With OPS)" → 200)
+    return nums.length ? Math.min(...nums) : null;
+  }
+  if (key === 'weight') {
+    const m = s.match(/(\d+(?:\.\d+)?)\s*kg/i);
+    return m ? parseFloat(m[1]) : null;
+  }
+  // brightness, touchPoints 등 단순 숫자
+  const m = s.match(/^(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+// 카드 간 동일 행의 높이를 동기화 — 카드마다 텍스트 길이가 달라서
+// 같은 스펙이 다른 Y 위치에 표시되는 문제 해결
+function alignSpecRows() {
+  document.querySelectorAll('.compare-grid').forEach(grid => {
+    const cards = Array.from(grid.querySelectorAll('.product-card'));
+    if (cards.length < 2) return;
+
+    // 그룹 헤더 + 스펙 행을 data-attribute로 매칭해 모음
+    const groups = {};
+    cards.forEach(card => {
+      card.querySelectorAll('[data-spec-key], [data-group-header]').forEach(el => {
+        const k = el.dataset.specKey
+          ? `spec:${el.dataset.specKey}`
+          : `group:${el.dataset.groupHeader}`;
+        (groups[k] = groups[k] || []).push(el);
+      });
+    });
+
+    // 1) min-height 리셋 (값 변경 후 재측정 위해)
+    Object.values(groups).forEach(els => els.forEach(el => { el.style.minHeight = ''; }));
+
+    // 2) 다음 프레임에서 측정 + 적용 (브라우저 reflow 후 정확한 높이 얻기 위해)
+    requestAnimationFrame(() => {
+      Object.values(groups).forEach(els => {
+        if (els.length < 2) return;
+        const maxH = Math.max(...els.map(el => el.getBoundingClientRect().height));
+        els.forEach(el => { el.style.minHeight = `${maxH}px`; });
+      });
+    });
+  });
+}
+
+// 선택된 카드들 사이에서 비교 우위(1위) 값 계산
+// 반환: { brightness: 410, contrast: 5000, ... } — null/단일 카드는 제외
+function computeWinnerValues(selectedItems) {
+  const winners = {};
+  if (selectedItems.length < 2) return winners; // 1개만 선택된 경우 음영 없음
+  SPEC_GROUPS.forEach(group => {
+    group.rows.forEach(row => {
+      if (!row.compare) return;
+      const values = selectedItems
+        .map(c => parseSpecNumeric(c.product[row.key], row.key))
+        .filter(v => v !== null);
+      if (values.length < 2) return; // 비교 데이터 2개 이상 있어야 우위 의미 있음
+      winners[row.key] = row.compare === 'higher' ? Math.max(...values) : Math.min(...values);
+    });
+  });
+  return winners;
+}
+
 // ============================================================
 // FALLBACK SVG (이미지 로드 실패 시)
 // ============================================================
@@ -3000,10 +3123,17 @@ function externalIconSVG() {
   return `<svg class="icon-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 }
 
-function renderProductCard(product, sizeNote = null) {
+function renderProductCard(product, sizeNote = null, winnerMap = {}) {
   const isMaxhub = product.brand === "MAXHUB";
   const fallback = fallbackSVG(product.brand, product.size, isMaxhub);
   const fallbackEncoded = "data:image/svg+xml;utf8," + encodeURIComponent(fallback);
+
+  // 비교 우위 판정: 이 제품의 row 값이 winnerMap의 최댓/최솟값과 같으면 winner
+  function isWinner(row) {
+    if (!row.compare || winnerMap[row.key] === undefined) return false;
+    const v = parseSpecNumeric(product[row.key], row.key);
+    return v !== null && v === winnerMap[row.key];
+  }
 
   // 스펙 그룹별 렌더 — 기본 항목 vs 상세 항목 분리
   let specHTML = '';
@@ -3016,10 +3146,11 @@ function renderProductCard(product, sizeNote = null) {
 
     // 그룹명 + 기본 항목들
     if (basicRows.length > 0) {
-      specHTML += `<div class="spec-group-name">${escapeHTML(group.name)}</div>`;
+      specHTML += `<div class="spec-group-name" data-group-header="${escapeHTML(group.name)}">${escapeHTML(group.name)}</div>`;
       basicRows.forEach(row => {
         const value = product[row.key] !== undefined ? (product[row.key] + (row.suffix || '')) : '—';
         const hasTooltip = !!row.tooltip;
+        const winner = isWinner(row);
         const tooltipHTML = hasTooltip ? `
           <span class="tooltip-bubble">
             <strong>${escapeHTML(row.tooltip.title)}</strong>
@@ -3028,7 +3159,7 @@ function renderProductCard(product, sizeNote = null) {
           </span>
         ` : '';
         specHTML += `
-          <div class="spec-list-row">
+          <div class="spec-list-row${winner ? ' winner' : ''}" data-spec-key="${escapeHTML(row.key)}">
             <div class="spec-list-label${hasTooltip ? ' has-tooltip' : ''}">${escapeHTML(row.label)}${tooltipHTML}</div>
             <div class="spec-list-value">${escapeHTML(value)}</div>
           </div>
@@ -3036,11 +3167,11 @@ function renderProductCard(product, sizeNote = null) {
       });
     }
 
-    // 상세 항목들 (detailed-row 클래스 추가)
+    // 상세 항목들 — 값 없어도 "—"로 렌더 (카드 간 행 정렬 위해)
     detailedRows.forEach(row => {
       const value = product[row.key] !== undefined ? (product[row.key] + (row.suffix || '')) : '—';
-      if (value === '—') return; // 값이 없으면 표시 안 함
       const hasTooltip = !!row.tooltip;
+      const winner = isWinner(row);
       const tooltipHTML = hasTooltip ? `
         <span class="tooltip-bubble">
           <strong>${escapeHTML(row.tooltip.title)}</strong>
@@ -3049,7 +3180,7 @@ function renderProductCard(product, sizeNote = null) {
         </span>
       ` : '';
       specHTML += `
-        <div class="spec-list-row detailed-row">
+        <div class="spec-list-row detailed-row${winner ? ' winner' : ''}" data-spec-key="${escapeHTML(row.key)}">
           <div class="spec-list-label${hasTooltip ? ' has-tooltip' : ''}">${escapeHTML(row.label)}${tooltipHTML}</div>
           <div class="spec-list-value">${escapeHTML(value)}</div>
         </div>
@@ -3210,18 +3341,29 @@ function render() {
       if (n >= 4) gridClass += ' compact';
     }
 
+    const winnerMap = computeWinnerValues(selectedItems);
     document.getElementById('competitor-grid-slot').innerHTML = `
       <div class="${gridClass}" style="${gridStyle}">
         ${selectedItems.map(c => {
           const sizeNote = !c.isExactMatch ? `${state.maxhubSize}" 모델 없음 — 가장 가까운 ${c.matchedSize}" 표시` : null;
-          return renderProductCard(c.product, sizeNote);
+          return renderProductCard(c.product, sizeNote, winnerMap);
         }).join('')}
       </div>
     `;
   }
 
   bindEvents();
+  alignSpecRows();
 }
+
+// 윈도우 리사이즈 시 카드 너비 변경 → 텍스트 줄바꿈 달라짐 → 재정렬 필요
+let _alignTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_alignTimer);
+  _alignTimer = setTimeout(alignSpecRows, 100);
+});
+
+// 상세 토글로 행 펼치고 닫을 때도 재정렬 필요 — bindEvents에서 처리
 
 // ============================================================
 // EVENTS
@@ -3249,15 +3391,23 @@ function bindEvents() {
     };
   });
 
-  // 상세 스펙 토글
+  // 상세 스펙 토글 — 모든 카드에 일괄 적용 (행 정렬 유지 위해)
   document.querySelectorAll('[data-detail-toggle]').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
-      const specList = btn.closest('.spec-list');
-      if (!specList) return;
-      const isExpanded = specList.classList.toggle('expanded');
-      const text = btn.querySelector('.detail-toggle-text');
-      if (text) text.textContent = isExpanded ? '상세 스펙 닫기' : '상세 스펙 보기';
+      const clickedList = btn.closest('.spec-list');
+      if (!clickedList) return;
+      const willExpand = !clickedList.classList.contains('expanded');
+      // 모든 spec-list에 동일 상태 적용
+      document.querySelectorAll('.spec-list').forEach(specList => {
+        specList.classList.toggle('expanded', willExpand);
+      });
+      // 모든 토글 버튼 텍스트 갱신
+      document.querySelectorAll('[data-detail-toggle] .detail-toggle-text').forEach(text => {
+        text.textContent = willExpand ? '상세 스펙 닫기' : '상세 스펙 보기';
+      });
+      // 펼친 행도 정렬
+      alignSpecRows();
     };
   });
 
