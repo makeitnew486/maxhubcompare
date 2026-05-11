@@ -381,6 +381,13 @@
     font-size: 14px;
     color: var(--rausch);
   }
+  .maxhub-strengths-tie {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface-soft);
+    padding: 3px 10px;
+    border-radius: 9999px;
+  }
   .maxhub-strengths-vs {
     font-size: 13px;
     color: var(--muted);
@@ -3202,31 +3209,45 @@ function renderMaxhubStrengths(selectedItems, winnerMap) {
   const others = selectedItems.filter(c => c.product.brand !== 'MAXHUB');
   if (!maxhub || others.length === 0) return '';
 
-  // MAXHUB가 winnerMap 값과 같은(=공동/단독 1위) 항목 수집
+  // MAXHUB이 단독 우위인 항목(strict win) vs 동률(tie) 분리
   const wins = [];
+  const ties = [];
   SPEC_GROUPS.forEach(group => {
     group.rows.forEach(row => {
       if (!row.compare || winnerMap[row.key] === undefined) return;
-      const v = parseSpecNumeric(maxhub.product[row.key], row.key);
-      if (v !== null && v === winnerMap[row.key]) {
-        wins.push({ label: row.label, value: formatStrengthValue(row.key, v) });
-      }
+      const maxhubV = parseSpecNumeric(maxhub.product[row.key], row.key);
+      if (maxhubV === null || maxhubV !== winnerMap[row.key]) return; // MAXHUB가 1위 아님
+      // 다른 카드 중에서도 같은 값을 가진 게 있나? → 있으면 동률
+      const tiedWithOthers = others.some(c => {
+        const ov = parseSpecNumeric(c.product[row.key], row.key);
+        return ov !== null && ov === winnerMap[row.key];
+      });
+      const entry = { label: row.label, value: formatStrengthValue(row.key, maxhubV) };
+      if (tiedWithOthers) ties.push(entry);
+      else wins.push(entry);
     });
   });
 
   const totalCompared = Object.keys(winnerMap).length;
   const vsBrands = others.map(c => `${c.product.brand} ${c.product.size}"`).join(' · ');
+  const tieBadge = ties.length > 0
+    ? `<span class="maxhub-strengths-tie">동률 ${ties.length}</span>`
+    : '';
 
+  // wins=0인 경우 — 사례별 메시지
   if (wins.length === 0) {
+    const tieList = ties.map(t => `${t.label} ${t.value}`).join(' · ');
     return `
       <div class="maxhub-strengths">
         <div class="maxhub-strengths-header">
           <span class="maxhub-strengths-title">MAXHUB 강점</span>
-          <span class="maxhub-strengths-count">0 / ${totalCompared}개</span>
+          <span class="maxhub-strengths-count">단독 우위 0 / ${totalCompared}개</span>
+          ${tieBadge}
           <span class="maxhub-strengths-vs">vs ${escapeHTML(vsBrands)}</span>
         </div>
         <div class="maxhub-strengths-empty">
-          비교 수치 항목에서 단독/공동 우위 없음 — <strong>차별 포인트(AI 카메라 · 16마이크 어레이 · BYOM · MS Teams 100% 호환 · Windows 11 Pro)</strong> 위주 제안 권장.
+          ${ties.length > 0 ? `공동 1위 ${ties.length}개(${escapeHTML(tieList)})는 있으나 단독 우위 없음. ` : '비교 수치 항목에서 우위 없음. '}
+          <strong>차별 포인트(AI 카메라 · 16마이크 어레이 · BYOM · MS Teams 100% 호환 · Windows 11 Pro)</strong> 위주 제안 권장.
         </div>
       </div>
     `;
@@ -3237,6 +3258,7 @@ function renderMaxhubStrengths(selectedItems, winnerMap) {
       <div class="maxhub-strengths-header">
         <span class="maxhub-strengths-title">MAXHUB 강점</span>
         <span class="maxhub-strengths-count">${wins.length} / ${totalCompared}개</span>
+        ${tieBadge}
         <span class="maxhub-strengths-vs">vs ${escapeHTML(vsBrands)}</span>
       </div>
       <div class="maxhub-strengths-chips">
