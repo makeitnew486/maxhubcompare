@@ -410,6 +410,17 @@
     font-size: 13px;
     line-height: 1.4;
     white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .maxhub-strength-chip:hover {
+    border-color: #2e7d32;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(46, 125, 50, 0.15);
+  }
+  .maxhub-strength-chip:active {
+    transform: translateY(0);
   }
   .maxhub-strength-chip .strength-label {
     color: var(--muted);
@@ -417,6 +428,18 @@
   .maxhub-strength-chip .strength-value {
     color: #2e7d32;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* 강점 칩 클릭 시 해당 스펙 행 잠깐 강조 */
+  @keyframes rowFlashRing {
+    0%   { box-shadow: 0 0 0 0 rgba(255, 56, 92, 0); }
+    20%  { box-shadow: 0 0 0 4px rgba(255, 56, 92, 0.55); }
+    100% { box-shadow: 0 0 0 8px rgba(255, 56, 92, 0); }
+  }
+  .spec-list-row.row-flash {
+    animation: rowFlashRing 1.4s ease-out;
+    position: relative;
+    z-index: 2;
   }
   .maxhub-strengths-empty {
     font-size: 13px;
@@ -3233,7 +3256,7 @@ function renderMaxhubStrengths(selectedItems, winnerMap) {
         const ov = parseSpecNumeric(c.product[row.key], row.key);
         return ov !== null && ov === winnerMap[row.key];
       });
-      const entry = { label: row.label, value: formatStrengthValue(row.key, maxhubV) };
+      const entry = { key: row.key, label: row.label, value: formatStrengthValue(row.key, maxhubV) };
       if (tiedWithOthers) ties.push(entry);
       else wins.push(entry);
     });
@@ -3274,10 +3297,10 @@ function renderMaxhubStrengths(selectedItems, winnerMap) {
       </div>
       <div class="maxhub-strengths-chips">
         ${wins.map(w => `
-          <span class="maxhub-strength-chip">
+          <button type="button" class="maxhub-strength-chip" data-jump-key="${escapeHTML(w.key)}" title="${escapeHTML(w.label)} 행으로 이동">
             <span class="strength-label">${escapeHTML(w.label)}</span>
             <span class="strength-value">${escapeHTML(w.value)}</span>
-          </span>
+          </button>
         `).join('')}
       </div>
     </div>
@@ -3635,6 +3658,23 @@ function bindEvents() {
       label.classList.remove('tip-open');
     });
   }, { once: true });
+
+  // 강점 칩 클릭 → 해당 스펙 행으로 스크롤 + 잠깐 강조
+  document.querySelectorAll('.maxhub-strength-chip[data-jump-key]').forEach(chip => {
+    chip.onclick = () => {
+      const key = chip.dataset.jumpKey;
+      const rows = document.querySelectorAll(`.compare-grid [data-spec-key="${key}"]`);
+      if (rows.length === 0) return;
+      // 첫 카드(MAXHUB)의 해당 행을 화면 중앙으로 스크롤
+      rows[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 모든 카드의 같은 행에 flash 효과
+      rows.forEach(r => {
+        r.classList.remove('row-flash'); // 재실행 위해 리셋
+        void r.offsetWidth; // 강제 reflow 해야 애니메이션 재시작됨
+        r.classList.add('row-flash');
+      });
+    };
+  });
 
   const selectAllBtn = document.getElementById('select-all');
   const clearAllBtn = document.getElementById('clear-all');
