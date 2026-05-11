@@ -358,6 +358,76 @@
     padding-right: 6px;
   }
 
+  /* MAXHUB 강점 요약 배너 — 비교 카드 위 */
+  .maxhub-strengths {
+    margin: 0 0 24px;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, rgba(255, 56, 92, 0.03), rgba(46, 125, 50, 0.04));
+    border: 1px solid rgba(255, 56, 92, 0.18);
+    border-radius: 16px;
+  }
+  .maxhub-strengths-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .maxhub-strengths-title {
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .maxhub-strengths-count {
+    font-size: 14px;
+    color: var(--rausch);
+  }
+  .maxhub-strengths-vs {
+    font-size: 13px;
+    color: var(--muted);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .maxhub-strengths-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .maxhub-strength-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 9999px;
+    background: white;
+    border: 1px solid #c8e6c9;
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .maxhub-strength-chip .strength-label {
+    color: var(--muted);
+  }
+  .maxhub-strength-chip .strength-value {
+    color: #2e7d32;
+    font-variant-numeric: tabular-nums;
+  }
+  .maxhub-strengths-empty {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.55;
+    padding: 8px 0;
+  }
+  .maxhub-strengths-empty strong {
+    color: var(--ink);
+  }
+  @media (max-width: 767px) {
+    .maxhub-strengths { padding: 14px 16px; border-radius: 12px; margin-bottom: 16px; }
+    .maxhub-strengths-title { font-size: 14px; }
+    .maxhub-strengths-count { font-size: 13px; }
+    .maxhub-strengths-vs { font-size: 12px; flex-basis: 100%; }
+    .maxhub-strength-chip { font-size: 12px; padding: 5px 10px; }
+  }
+
   /* 상세 항목 — 기본은 숨김, 펼치면 표시 */
   .spec-list-row.detailed-row {
     display: none;
@@ -1346,6 +1416,8 @@
         </div>
 
         <div class="brand-chips" id="brand-chips"></div>
+
+        <div id="maxhub-strengths-slot"></div>
 
         <div id="competitor-grid-slot"></div>
       </div>
@@ -3078,6 +3150,74 @@ function computeWinnerValues(selectedItems) {
   return winners;
 }
 
+// MAXHUB가 선택된 경쟁사들 대비 우위(또는 동률 1위)인 스펙만 골라 표시용 칩으로 변환
+function formatStrengthValue(key, value) {
+  if (key === 'maxCastDevices') return `${value}대 동시`;
+  if (key === 'micRange') return `${value}m`;
+  if (key === 'ram' || key === 'storage') return `${value}GB`;
+  if (key === 'brightness') return `${value} cd/m²`;
+  if (key === 'contrast') return `${value}:1`;
+  if (key === 'touchPoints') return `${value}점`;
+  if (key === 'power') return `${value}W`;
+  if (key === 'weight') return `${value}kg`;
+  return String(value);
+}
+
+function renderMaxhubStrengths(selectedItems, winnerMap) {
+  // 조건: MAXHUB 포함 + 경쟁사 1개 이상
+  const maxhub = selectedItems.find(c => c.product.brand === 'MAXHUB');
+  const others = selectedItems.filter(c => c.product.brand !== 'MAXHUB');
+  if (!maxhub || others.length === 0) return '';
+
+  // MAXHUB가 winnerMap 값과 같은(=공동/단독 1위) 항목 수집
+  const wins = [];
+  SPEC_GROUPS.forEach(group => {
+    group.rows.forEach(row => {
+      if (!row.compare || winnerMap[row.key] === undefined) return;
+      const v = parseSpecNumeric(maxhub.product[row.key], row.key);
+      if (v !== null && v === winnerMap[row.key]) {
+        wins.push({ label: row.label, value: formatStrengthValue(row.key, v) });
+      }
+    });
+  });
+
+  const totalCompared = Object.keys(winnerMap).length;
+  const vsBrands = others.map(c => `${c.product.brand} ${c.product.size}"`).join(' · ');
+
+  if (wins.length === 0) {
+    return `
+      <div class="maxhub-strengths">
+        <div class="maxhub-strengths-header">
+          <span class="maxhub-strengths-title">MAXHUB 강점</span>
+          <span class="maxhub-strengths-count">0 / ${totalCompared}개</span>
+          <span class="maxhub-strengths-vs">vs ${escapeHTML(vsBrands)}</span>
+        </div>
+        <div class="maxhub-strengths-empty">
+          비교 수치 항목에서 단독/공동 우위 없음 — <strong>차별 포인트(AI 카메라 · 16마이크 어레이 · BYOM · MS Teams 100% 호환 · Windows 11 Pro)</strong> 위주 제안 권장.
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="maxhub-strengths">
+      <div class="maxhub-strengths-header">
+        <span class="maxhub-strengths-title">MAXHUB 강점</span>
+        <span class="maxhub-strengths-count">${wins.length} / ${totalCompared}개</span>
+        <span class="maxhub-strengths-vs">vs ${escapeHTML(vsBrands)}</span>
+      </div>
+      <div class="maxhub-strengths-chips">
+        ${wins.map(w => `
+          <span class="maxhub-strength-chip">
+            <span class="strength-label">${escapeHTML(w.label)}</span>
+            <span class="strength-value">${escapeHTML(w.value)}</span>
+          </span>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 // ============================================================
 // FALLBACK SVG (이미지 로드 실패 시)
 // ============================================================
@@ -3321,6 +3461,7 @@ function render() {
 
   // Product grid
   if (selectedItems.length === 0) {
+    document.getElementById('maxhub-strengths-slot').innerHTML = '';
     document.getElementById('competitor-grid-slot').innerHTML = `
       <div class="compare-empty">
         <div class="body-md">비교할 브랜드를 선택하세요</div>
@@ -3341,6 +3482,7 @@ function render() {
     }
 
     const winnerMap = computeWinnerValues(selectedItems);
+    document.getElementById('maxhub-strengths-slot').innerHTML = renderMaxhubStrengths(selectedItems, winnerMap);
     document.getElementById('competitor-grid-slot').innerHTML = `
       <div class="${gridClass}" style="${gridStyle}">
         ${selectedItems.map(c => {
