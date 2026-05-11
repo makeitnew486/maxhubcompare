@@ -3140,20 +3140,22 @@ function parseSpecNumeric(value, key) {
   return m ? parseFloat(m[1]) : null;
 }
 
-// 카드 간 동일 행의 높이를 동기화 — 카드마다 텍스트 길이가 달라서
+// 카드 간 동일 위치 블록의 높이를 동기화 — 카드마다 텍스트 길이가 달라서
 // 같은 스펙이 다른 Y 위치에 표시되는 문제 해결
+// 동기화 대상: 제품 메타(.product-meta), 그룹 헤더(.spec-group-name), 각 스펙 행(.spec-list-row)
 function alignSpecRows() {
   document.querySelectorAll('.compare-grid').forEach(grid => {
     const cards = Array.from(grid.querySelectorAll('.product-card'));
     if (cards.length < 2) return;
 
-    // 그룹 헤더 + 스펙 행을 data-attribute로 매칭해 모음
+    // data-spec-key / data-group-header / data-block 로 매칭되는 모든 요소 모음
     const groups = {};
     cards.forEach(card => {
-      card.querySelectorAll('[data-spec-key], [data-group-header]').forEach(el => {
-        const k = el.dataset.specKey
-          ? `spec:${el.dataset.specKey}`
-          : `group:${el.dataset.groupHeader}`;
+      card.querySelectorAll('[data-spec-key], [data-group-header], [data-block]').forEach(el => {
+        let k;
+        if (el.dataset.specKey) k = `spec:${el.dataset.specKey}`;
+        else if (el.dataset.groupHeader) k = `group:${el.dataset.groupHeader}`;
+        else k = `block:${el.dataset.block}`;
         (groups[k] = groups[k] || []).push(el);
       });
     });
@@ -3161,13 +3163,22 @@ function alignSpecRows() {
     // 1) min-height 리셋 (값 변경 후 재측정 위해)
     Object.values(groups).forEach(els => els.forEach(el => { el.style.minHeight = ''; }));
 
-    // 2) 다음 프레임에서 측정 + 적용 (브라우저 reflow 후 정확한 높이 얻기 위해)
-    requestAnimationFrame(() => {
+    // 2) 두 번 측정 — 폰트/이미지 늦게 로드되는 경우 대비
+    const measureAndApply = () => {
       Object.values(groups).forEach(els => {
         if (els.length < 2) return;
-        const maxH = Math.max(...els.map(el => el.getBoundingClientRect().height));
+        // 측정 전 다시 리셋 (이전 적용 값 영향 제거)
+        els.forEach(el => { el.style.minHeight = ''; });
+        const heights = els.map(el => el.getBoundingClientRect().height);
+        const maxH = Math.max(...heights);
         els.forEach(el => { el.style.minHeight = `${maxH}px`; });
       });
+    };
+
+    requestAnimationFrame(() => {
+      measureAndApply();
+      // 폰트 로드 / 늦은 reflow 대응 — 한번 더 (다른 텍스트 길이로 결과 재측정)
+      setTimeout(measureAndApply, 120);
     });
   });
 }
@@ -3392,11 +3403,11 @@ function renderProductCard(product, sizeNote = null, winnerMap = {}) {
 
   return `
     <article class="product-card">
-      <div class="device-visual ${isMaxhub ? 'maxhub' : ''}">
+      <div class="device-visual ${isMaxhub ? 'maxhub' : ''}" data-block="visual">
         ${imageHTML}
         ${isMaxhub ? '<div class="maxhub-badge">FBKR</div>' : ''}
       </div>
-      <div class="product-meta">
+      <div class="product-meta" data-block="meta">
         <div class="meta-row">
           <h3 class="title-md">${escapeHTML(product.brand)}</h3>
           <div class="meta-size">${product.size}<span>"</span></div>
