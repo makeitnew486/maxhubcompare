@@ -1022,12 +1022,15 @@
     .compare-bar { gap: 8px; font-size: 12px; }
   }
   .compare-bar-name {
-    width: 80px;
+    width: 140px;
     color: var(--muted);
     font-weight: 500;
+    white-space: nowrap;
+    overflow: visible;
+    flex-shrink: 0;
   }
   @media (max-width: 640px) {
-    .compare-bar-name { width: 70px; font-size: 11px; }
+    .compare-bar-name { width: 110px; font-size: 11px; }
   }
   .compare-bar-track {
     flex: 1;
